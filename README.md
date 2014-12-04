@@ -243,6 +243,8 @@ module.exports = function (sequelize, DataTypes){
 
 ```
 THIS SHOULD GET YOU STARTED ON MAKING AN AWESOME NODE APPLICATION
+* Refer back to your moonwalk app to get you started Ryan....
+
 
 ## Heroku - Start it up!
 Once you finish making your app lets
@@ -313,4 +315,440 @@ Always, always, always start by looking at the heroku logs (in terminal, type ``
   - To see all of your config variables run `heroku config`
   - To reference your heroku variable in your code use  `process.env.VARIABLE_NAME`
   - Start fresh with a production database, but if you REALLY want your development database info to transfer to the production one use  `heroku pg:push NAME_OF_YOUR_LOCAL_DATABASE NAMEOF_HEROKU_CONFIG_DB --app YOUR_APPLICATION_NAME` (note, your heroku DB __must__ be empty for this to run)
+
+
+
+
+## RAILS APP
+
+### Starting off
+
+* Start with a new rails app `rails new something -TBd postgresql
+* In your gemfile, comment out the bcrypt-ruby gem and add pry-rails
+* bundle install
+
+Lets create a user model
+* rails g model User username password password_digest
+
+Your User.rb in models folder should look like
+```
+class User < ActiveRecord::Base
+  has_secure_password
+
+  validates :username,
+    uniqueness: true,
+    presence: true
+
+end
+```
+and your migration should look like
+this includes a password reset token :3
+```
+class CreateUsers < ActiveRecord::Migration
+  def change
+    create_table :users do |t|
+      t.string :username
+      t.string :password
+      t.string :password_digest
+      t.integer :reset_token
+
+      t.timestamps
+    end
+  end
+end
+```
+
+
+Your home page can do cool stuff with Users!
+Here is an example!!! Of login and password resets
+
+```
+class AccessController < ApplicationController
+before_action :confirm_logged_in, except: [:new, :create, :attempt_login, :password_reset, :reset, :reset_password, :logout, :home]
+before_action :prevent_login_signup, only: [:home]
+
+
+
+# HOME PAGE
+  def home
+    @user = User.new
+  end
+
+  def create
+    @user = User.create(user_params)
+    if(@user.save)
+      UserMailer.signup_confirmation(@user).deliver
+      session[:user_id] = @user.id
+      flash[:success] = "You are now logged in!"
+      redirect_to index_path
+    else
+      flash[:alert] = "Something went wrong. Try again"
+      redirect_to root_path
+    end
+
+  end
+
+  def attempt_login
+
+    if params[:username].present? && params[:password].present?
+      found_user = User.where(username: params[:username]).first
+      if found_user
+        authorized_user = found_user.authenticate(params[:password])
+      end
+    end
+
+    if !found_user
+      flash.now[:alert] = "Invalid Username"
+      @user = User.new
+      render :home
+    elsif !authorized_user
+      flash.now[:alert] = "Invalid Password"
+      @user = User.new
+      render :home
+    else
+      session[:user_id] = authorized_user.id
+      flash[:success] = "You are now logged in."
+      redirect_to index_path
+    end
+  end
+
+  def password_reset
+
+    if User.where(username: params[:username]).present?
+      @user = User.where(username: params[:username]).first
+      @user.update_attributes(:reset_token => Random.rand(100))
+      UserMailer.password_reset(@user, root_url).deliver
+      redirect_to root_path
+    else
+      redirect_to root_path
+    end
+  end
+
+# RESET PAGE
+  def reset
+    puts "RESET ACTION!!!!"
+    if User.find_by_reset_token(params[:user_reset_token]).present?
+      @user = User.find_by_reset_token(params[:user_reset_token])
+    else
+      redirect_to root_path
+    end
+  end
+
+
+  def reset_password
+    @user = User.find_by_reset_token(params[:user_reset_token])
+    @user.update_attributes(user_params)
+    @user.update_attributes(:reset_token => nil)
+    if(@user.save)
+      session[:user_id] = @user.id
+      flash[:success] = "You're profile is updated"
+      redirect_to root_path
+    else
+      render :reset
+    end
+  end
+
+
+  def logout
+    # mark user as logged out
+    session[:user_id] = nil
+    flash[:notice] = "You are now logged out"
+    redirect_to root_path
+  end
+
+
+# APP PAGE
+  def index
+    @current_user = current_user
+  end
+
+  private
+
+  def user_params
+    params.require(:user).permit(:username, :password, :password_confirmation)
+  end
+end
+
+```
+
+### Mailers
+
+Create a mailer instace
+
+```
+rails g mailer user_mailer signup_confirmation password_reset
+
+```
+
+Inside teh mailers folder
+It can look like this!
+
+```
+class UserMailer < ActionMailer::Base
+  default from: "moonwalk2015@gmail.com"
+
+  # Subject can be set in your I18n file at config/locales/en.yml
+  # with the following lookup:
+  #
+  #   en.user_mailer.signup_confirmation.subject
+  #
+  def signup_confirmation(user)
+    @user = user
+    mail to: user.username, subject: "Sign Up Confirmation"
+  end
+
+  def password_reset(user, root_url)
+    @user = user
+    @url = root_url+"reset/#{user.reset_token}"
+    mail to: user.username, subject: "Password Reset"
+  end
+end
+
+```
+
+You can then change your template how you like!
+EX)
+
+```
+<!-- <h1 style="text-align:center">Moonwalk</h1><br>
+
+Hi <%= @user.username %>,<br><br>
+
+Thank you for signing up!  We appreciate your interest in our application and look forward to hearing your feedback.  Please let us know if you need help navigating our site or just have a general question.  Check us out at <a href="http://moonwalk.herokuapp.com/">Moonwalk.Heroku.com!</a><br>
+
+<img style="height:150px; width: 250px;"src="https://s3.amazonaws.com/uploads.hipchat.com/39979/1252803/PUPLibnyzYmw3pM/Moonwalk7.gif" alt=""> -->
+```
+
+### Mail config
+
+Inside ` /config/environments/development.rb `
+
+Add these lines
+```
+config.action_mailer.raise_delivery_errors = true
+config.action_mailer.delivery_method = :sendmail
+config.action_mailer.perform_deliveries = true
+
+```
+Create a new intializer file
+
+` /config/initializers/setup_mail.rb `
+
+And add an action mailer
+Ex)
+
+```
+ActionMailer::Base.smtp_settings = {
+  :address              => "smtp.gmail.com",
+  :port                 => 587,
+  :domain               => "gmail.com",
+  :user_name            => "moonwalk2015@gmail.com",
+  :password             => "moonwalk24",
+  :authentication       => "plain",
+  :enable_starttls_auto => true
+}
+
+```
+
+
+### Setting up Heroku
+
+Make sure your using inside your Gemfile
+`gem 'pg'`
+
+and add
+
+```
+group :production do
+  gem 'rails_12factor'
+end
+
+```
+
+then run a bundle install --without production
+
+add changes to your deploy and commit them :3
+
+You can then
+```
+$heroku create my_app_name
+then
+git push heroku master
+```
+
+then migrate your stuff
+
+heroku run rake db:migrate
+
+if your having problems inside your production.rb file add
+
+` config.assets.compile = true`
+
+
+
+## ANGULAR
+
+Look at following rails app setup to get started
+
+* Start with a new rails app `rails new something -TBd postgresql
+* inside gemfile 'pry-rails'
+
+```
+bundle
+rake db:create
+rake db:migrate
+rake db:seed
+rails s
+```
+
+DELETE TURBOLINKS
+```
+REMOVE THE Gem turbolinks
+remove them in your javascipt application
+and remove the two
+"data-turbolinks-track" => true
+inside your view application
+
+```
+
+ADD ANGULAR
+```
+gem 'angular-gem'
+gem 'angularjs-rails-resource', '~> 1.1.1'
+
+inside your app javascript
+//= require angular
+//= require angularjs/rails/resource
+
+```
+
+your application view page can look like
+````
+<!-- <!DOCTYPE html>
+<html>
+<head>
+  <title>Whatever</title>
+  <%= stylesheet_link_tag    'application', media: 'all' %>
+  <%= javascript_include_tag 'application' %>
+  <%= csrf_meta_tags %>
+</head>
+<body ng-app="app">
+
+<%= yield %>
+
+</body>
+</html>
+ -->
+ ```
+
+ Turn your rails into an api server
+
+ ```
+ rails g controller main index
+
+ rails g controller players index show create update destroy
+
+ then in your playerscontroller
+
+ class PlayersController < ApplicationController
+  # controller supports json only, it can't render pages
+  respond_to :json
+
+  def index
+    # For a given controller action,
+    # respond_with generates an appropriate
+    # response based on the mime-type requested
+    # by the client.
+    respond_with Player.all
+  end
+
+  def show
+    respond_with Player.find(params[:id])
+  end
+
+  def create
+    respond_with Player.create(params[:player])
+  end
+
+  def update
+    respond_with Player.update(params[:id], params[:player])
+  end
+
+  def destroy
+    respond_with Player.destroy(params[:id])
+  end
+end
+
+```
+
+Add player resource routes:
+`resources :players`
+
+You can remove the players view folder
+and also the player js folder
+
+inside your main.js.cofeee
+it can look like with couple examples of calling the Player model
+
+```
+# Place all the behaviors and hooks related to the matching controller here.
+# All this logic will automatically be available in application.js.
+# You can use CoffeeScript in this file: http://coffeescript.org/
+app = angular.module "app", ['rails']
+
+# Define Config for CSRF token
+app.config ["$httpProvider", ($httpProvider)->
+  $httpProvider.defaults.headers.common['X-CSRF-Token'] = $('meta[name=csrf-token]').attr('content')
+]
+
+# Grab the Player routes
+app.factory "Player", (railsResourceFactory) ->
+  resource = railsResourceFactory(
+    url: "/players"
+    name: "player"
+  )
+  return resource
+
+app.controller "IndexCtrl", ['$scope','$http','Player', ($scope, $http, Player ) ->
+
+  $scope.test = 123;
+
+  # GETS ALL THE PLAYERS INSIDE THE DATABASE
+  Player.query().then (result) ->
+    $scope.players = result
+
+  # ADD THAT PLAYER
+  $scope.addPlayer = () ->
+    console.log "it's here"
+    newPlayer = new Player(name: $scope.newName, rating: 5, winner: false)
+    newPlayer.create().then (newlyCreatedPlayer) ->
+      $scope.players.push newlyCreatedPlayer
+      $scope.newName = ""
+
+  # DELETE THAT PLAYER
+  $scope.deleteItem = (player) ->
+    player.delete().then () ->
+      select = $scope.players.indexOf(player)
+      $scope.players.splice(select, 1)
+
+  # PICK THAT WINNER
+  $scope.pickWin = () ->
+    unwinners = $scope.players.filter (human) ->
+      !human.winner
+
+    if unwinners.length is 0
+      $scope.players.forEach (human) ->
+        human.winner = false;
+        human.update()
+    else
+      item = Math.floor(Math.random() * unwinners.length)
+      console.log item
+      person = unwinners[item];
+      person.winner = true;
+      person.update()
+
+]
+```
+
+That should get you started with Angular :3
 
