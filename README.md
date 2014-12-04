@@ -17,7 +17,7 @@ Add the text 'node_modules' in our .gitignore
 Start the project and start adding dependencies that you might need!
 
 * npm init
-* Ex) npm install --save express ejs pg lodash sequelize sequelize-cli
+* Ex) npm install --save express ejs pg lodash sequelize sequelize-cli bcrypt
 
 If your going to incoporate database create one and sequelize the project
 
@@ -31,7 +31,7 @@ change config file to
 ```
 {
   "development": {
-    "database": "firstapp",
+    "database": "firstproject",
     "host": "127.0.0.1",
     "dialect": "postgres"
   },
@@ -41,10 +41,276 @@ change config file to
     "dialect": "postgres"
   },
   "production": {
-    "database": "database_production",
-    "host": "127.0.0.1",
-    "dialect": "postgres"
+    "use_env_variable": "DATABASE_URL"
   }
 }
 
+
 ```
+Your routes.js file should look like this
+```
+var routeMiddleware = {
+  checkAuthentication: function(req, res, next) {
+    if (!req.user) {
+      res.render('login', {message: "Please log in first"});
+    }
+    else {
+     return next();
+    }
+  },
+
+  preventLoginSignup: function(req, res, next) {
+    if (req.user) {
+      res.redirect('/home');
+    }
+    else {
+     return next();
+    }
+  }
+};
+module.exports = routeMiddleware;
+
+```
+
+Depending on how many dependices you have a normal app.js might look like this
+
+```
+var express = require('express'),
+    app = express(),
+    bodyParser = require('body-parser'),
+    methodOverride = require('method-override'),
+    db = require("./models/index"),
+    passport = require("passport"),
+    request = require("request"),
+    passportLocal = require("passport-local"),
+    cookieParser = require("cookie-parser"),
+    session = require("cookie-session"),
+    flash = require("connect-flash");
+    var routeMiddleware = require("./config/routes");
+
+app.set('view engine', 'ejs');
+app.use(express.static(__dirname + '/public'));
+app.use(bodyParser.urlencoded({extended: true}));
+app.use(methodOverride('_method'));
+
+app.get('/', function(req, res){
+  res.send('Hello World');
+});
+
+var server = app.listen(process.env.PORT || 3000, function() {
+    console.log('Listening on port %d', server.address().port);
+});
+```
+
+
+
+
+### Creating Models
+
+EX) `sqlize model:create --name User --attributes username:string, password:string'
+
+with your user migration look like
+```
+"use strict";
+module.exports = {
+  up: function(migration, DataTypes, done) {
+    migration.createTable("Users", {
+      id: {
+        allowNull: false,
+        autoIncrement: true,
+        primaryKey: true,
+        type: DataTypes.INTEGER
+      },
+      username: {
+        type: DataTypes.STRING,
+        unique: true,
+        allowNull: false
+      },
+      password: {
+        type: DataTypes.STRING
+      },
+      createdAt: {
+        allowNull: false,
+        type: DataTypes.DATE
+      },
+      updatedAt: {
+        allowNull: false,
+        type: DataTypes.DATE
+      }
+    }).done(done);
+  },
+  down: function(migration, DataTypes, done) {
+    migration.dropTable("Users").done(done);
+  }
+};
+```
+
+and your user model looking like
+```
+"use strict";
+
+var bcrypt = require("bcrypt");
+var passport = require("passport");
+var passportLocal = require("passport-local");
+var salt = bcrypt.genSaltSync(10);
+
+module.exports = function (sequelize, DataTypes){
+   var User = sequelize.define('User', {
+     username: {
+        type: DataTypes.STRING,
+        unique: true,
+        allowNull: false,
+        validate: {
+          len: [6, 30]
+        }
+    },
+    password: DataTypes.STRING
+    },
+
+  {
+    classMethods: {
+      associate: function(models) {
+        User.hasMany(models.Food,{onDelete: "NO ACTION"});
+    },
+      encryptPass: function(password) {
+        var hash = bcrypt.hashSync(password, salt);
+        return hash;
+    },
+      comparePass: function(userpass, dbpass) {
+      // don't salt twice when you compare....watch out for this
+        return bcrypt.compareSync(userpass, dbpass);
+    },
+      createNewUser:function(username, password, err, success ) {
+        if(password.length < 6) {
+          err({message: "Password should be more than six characters"});
+        }
+        else{
+        User.create({
+            username: username,
+            password: this.encryptPass(password)
+          }).done(function(error,user) {
+            if(error) {
+              console.log(error)
+              if(error.name === 'SequelizeValidationError'){
+              err({message: 'Your username should be at least 6 characters long', username: username});
+            }
+              else if(error.name === 'SequelizeUniqueConstraintError') {
+              err({message: 'An account with that username already exists', username: username});
+              }
+            }
+            else{
+              success({message: 'Account created, please log in now'});
+            }
+          });
+        }
+      },
+      } // close classMethods
+    } //close classMethods outer
+
+  ); // close define user
+
+  passport.use(new passportLocal.Strategy({
+      usernameField: 'username',
+      passwordField: 'password',
+      passReqToCallback : true
+    },
+
+    function(req, username, password, done) {
+      // find a user in the DB
+      User.find({
+          where: {
+            username: username
+          }
+        })
+        // when that's done,
+        .done(function(error,user){
+          if(error){
+            console.log(error);
+            return done (error, req.flash('loginMessage', 'Oops! Something went wrong.'));
+          }
+          if (user === null){
+            return done (null, false, req.flash('loginMessage', 'Username does not exist.'));
+          }
+          if ((User.comparePass(password, user.password)) !== true){
+            return done (null, false, req.flash('loginMessage', 'Invalid Password'));
+          }
+          done(null, user);
+        });
+    }));
+
+  return User;
+}; // close User function
+
+```
+THIS SHOULD GET YOU STARTED ON MAKING AN AWESOME NODE APPLICATION
+
+## Heroku - Start it up!
+Once you finish making your app lets
+Make a app on your heroku dashboard
+
+### Setup
+* touch Procfile
+* `echo "web: node app.js" >> Procfile`
+* `heroku config:set PORT=80 --app YOUR_APPLICATION_NAME`
+* `heroku git:remote -a YOUR_APPLICATION_NAME`
+* `git push heroku master`
+* 'heroku ps:scale web=1 --app YOUR_APPLICATION_NAME'
+
+### Connect a DB with sequelize (this should be done ONLY after you have set up your local database and ran all migrations successfully):
+
+1. In terminal, install the add-on for postgres
+  ``` heroku addons:add heroku-postgresql:dev```
+2. This should create a DATABASE_URL config variable for you. If not, run ``` heroku config:set DATABASE_URL=(THE OTHER DB URL HEROKU HAS GIVEN) --app YOUR_APPLICATION_NAME```
+3. Set your NODE_ENV variable to 'production' by running this command in terminal: ```heroku config:set NODE_ENV='production' --app YOUR_APPLICATION_NAME```
+4. Make sure your production variables in config.json are set like this
+
+  ```
+  "production": {
+      "use_env_variable": "DATABASE_URL"
+  }
+  ```
+
+5. Add and commit your changes using `git commit -am "adding production db"` and then push your changes to heroku using `git push heroku master`
+6. Now run your migrations by typing in terminal ``` heroku run node_modules/.bin/sequelize db:migrate``` and you should have all your tables set up in a heroku hosted database
+
+
+### Connect to your heroku DB using psql
+
+1. In terminal, type in heroku pg:psql and it should connect you to your DB
+
+### Connect to your heroku DB using PG Commander:
+
+1. In the bottom left corner of PG Commander click New Favorite
+2. Put in the following information from your heroku database URL (to see this again just run in terminal: ``` heroku config```)
+3. Here is the pattern for the URL and the information you need to put into PG Commander ___do not include : or @ or / when inputting information___:
+  - __postgres://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE__
+4. Once connected it should alert you that it cannot verify the identity of the server, just click connect anyway and you should be in
+
+### I broke it...what do I do?
+
+Always, always, always start by looking at the heroku logs (in terminal, type ```heroku logs -t```). This will tell you any node/db errors you are having (you can think of heroku logs like your terminal, whenever you `console.log` something, you will see it here) and remember...___It happens___, here are some things to double check:
+
+1. Make sure you have named the file "Procfile" and that it is NOT in any sub-folders (it should be in the same folder as your app.js file)
+2. Make sure you typed this __exactly__: ```web: node app.js``` (if your main file is named app.js, otherwise change it to whatever you have named your starting file)
+3. Did you miss a dependency? Check your package.json file to make sure you have all the modules you need to run the application and if you're missing something, run ```npm install --save MODULE_NAME```
+4. Check your config variables and make sure you have at least a PORT, NODE_ENV and DATABASE_URL variable set. Is your PORT set to 80? Is your NODE_ENV set to 'production' (make sure this is a string)
+5. Have you created a remote to push to heroku? Check with ```heroku remote -v```
+6. Check to see if for some reason you have a PORT variable declared in your .zshrc or .bashrc file by running echo $PORT (if you see anything, that's not good and you need to go in your .zshrc or .bashrc file and remove it). This sometimes overwrites the heroku variable and heroku doesn't get too happy about that...
+
+### But....things are still breaking!
+
+1. Did you __commit__ your most recent changes and push them to heroku? If you made any changes or installed any new modules, heroku will not know about it until you run ```git push heroku master```
+2. Is your `config.json` file is set up correctly? Make sure the NODE_ENV is set to 'production' and then check to see that the information from your DATABASE_URL variable match what is in the `config.json`
+3. We can't use the alias sqlize anymore, so when you run your migrations make sure to run `heroku run node_modules/.bin/sequelize db:migrate` or `sequelize db:migrate`
+4. Did you accidentally forget to create config variables for your keys? Remember to add your keys using `heroku config:set VARIABLE_NAME=VALUE`
+5. Is there anything in your `.gitignore` file that heroku needs?
+
+### Heroku best practices
+
+- Store your secret information in config variables (this includes the password to your database and secret keys!)
+  - To create a new config variable run this in terminal: `heroku config:set VARIABLE_NAME=VALUE --app YOUR_APPLICATION_NAME`
+  - To remove a variable name run in terminal: `heroku config: unset VARIABLE_NAME --app YOUR_APPLICATION_NAME`
+  - To see all of your config variables run `heroku config`
+  - To reference your heroku variable in your code use  `process.env.VARIABLE_NAME`
+  - Start fresh with a production database, but if you REALLY want your development database info to transfer to the production one use  `heroku pg:push NAME_OF_YOUR_LOCAL_DATABASE NAMEOF_HEROKU_CONFIG_DB --app YOUR_APPLICATION_NAME` (note, your heroku DB __must__ be empty for this to run)
+
