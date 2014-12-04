@@ -750,5 +750,28 @@ app.controller "IndexCtrl", ['$scope','$http','Player', ($scope, $http, Player )
 ]
 ```
 
-That should get you started with Angular :3
+If you want to add filter, directive pages that's not in your main controller you can do something like this!
+
+Inside your application.js folder
+you can require your main js file with your app = module thingy.
+
+`//= require main`
+
+then inside your main.js file
+
+`window.app = angular.module "app", []`
+
+add that window so you can make it global
+
+now you can make filter.js files and directive.js files and all would be good
+
+ex) Inside my filter.js.coffee file!
+`
+app.filter("reverse", () ->
+  (input) ->
+    console.log input
+    for title in input
+      title.split("").reverse().join("")
+)
+`
 
