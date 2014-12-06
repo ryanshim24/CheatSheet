@@ -633,9 +633,9 @@ your application view page can look like
   <%= csrf_meta_tags %>
 </head>
 <body ng-app="app">
-
+  <div class="container">
 <%= yield %>
-
+  </div>
 </body>
 </html>
  -->
@@ -774,4 +774,17 @@ app.filter("reverse", () ->
       title.split("").reverse().join("")
 )
 `
+
+ADDING BOOTSTRAP TO RAILS
+
+
+Inside application.css
+add
+```
+*= require bootstrap-3.2.0.min
+```
+
+Go get the bootstrap file from somewhere and put it inside your vendors stylesheet folder.
+
+
 
