@@ -646,6 +646,9 @@ your application view page can look like
  ```
  rails g controller main index
 
+ (Models are Singular, Controllrers are Plural)
+
+ rails g model player name:string winner:boolean rating:integer
  rails g controller players index show create update destroy
 
  then in your playerscontroller
@@ -689,7 +692,12 @@ end
 ```
 
 Add player resource routes:
-`resources :players`
+```
+resources :players
+
+  root to: 'main#index'
+end
+```
 
 You can remove the players view folder
 and also the player js folder
