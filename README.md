@@ -810,6 +810,12 @@ Go get the bootstrap file from somewhere and put it inside your vendors styleshe
 
 We want to Refactor our code so we can have a more organized look for our angular app. This can get a bit confusing so lets get started!!! It's in javascript but I'll do coffeee script later :3
 
+We need to install the underscore gem because if you notice
+the "_.find" is an udnerscore method so go inside your gem file `gem 'underscore-rails'`
+bundle and restart
+
+Go slow ryan You can do this!!!
+
 Inside your javascript folder
 Lets create an app folder
 
@@ -953,8 +959,10 @@ So inside lets create
 Your index.html file can now look like
 
 ```
-<h1>Southpark Raffle</h1>
 <div ng-controller="IndexCtrl">
+  <div class="container">
+
+  <h1>Southpark Raffle</h1>
 
   <form ng-submit="addPlayer()">
     <input type="text" ng-model="newName">
@@ -972,6 +980,7 @@ Your index.html file can now look like
 
   <br>
     <a ng-href="/movies">I'm tired of this, lets watch movie trailers ... </a>
+  </div>
 </div>
 ```
 
@@ -1028,7 +1037,8 @@ Inside our application file for our views
 </head>
 <body>
 
-<div ng-view></div>
+<div ng-view>
+</div>
 
 </body>
 </html>
@@ -1054,74 +1064,61 @@ Lets create a MovieController and MoviesController
 
 Ex) movie.js
 ```
-angular.module('app.controllers')
-  .controller('MovieController', [
-  "$scope",
-  "$routeParams",
-  "$sce",
-  "YouTube",
-  function($scope, $routeParams, $sce, YouTube) {
+angular.module("app.controllers").controller "MovieController", [
+  "$scope"
+  "$routeParams"
+  "$sce"
+  "YouTube"
+  ($scope, $routeParams, $sce, YouTube) ->
+    console.log $routeParams
+    YouTube.getTop25Movies().then (result) ->
+      movies = result
+      console.log result
+      $scope.movie = _.find(movies, (v) ->
+        v.youtubeId is $routeParams.movie_id
+      )
 
-  console.log($routeParams);
+      $scope.movie.youtubeUrl = $sce.trustAsResourceUrl("http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0")
 
-  YouTube.getTop25Movies().then(function(result){
-    var movies = result;
-    console.log(result);
-    $scope.movie = _.find(movies, function(v){
-      return v.youtubeId == $routeParams.movie_id;
-    });
-
-    // $scope.movie.youtubeUrl = "http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0"
-
-    $scope.movie.youtubeUrl = $sce.trustAsResourceUrl("http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0");
-
-  });
-
-  }]);
+]
 ```
 
 and movies.js
 ```
-angular.module('app.controllers')
-  .controller('MoviesController', [
-  "$scope",
-  "YouTube",
-  function($scope, YouTube) {
+angular.module("app.controllers").controller "MoviesController", [
+  "$scope"
+  "YouTube"
+  ($scope, YouTube) ->
+    YouTube.getTop25Movies().then (result) ->
+      $scope.movies = result
 
-    YouTube.getTop25Movies().then(function(result){
-      $scope.movies = result;
-    });
-
-  }]);
+]
 ```
 
 finally lets create a new factory called Youtube
 ```
-angular.module('app.factories')
-  .factory('YouTube', function ($http, $q) {
-    var api = {};
+angular.module("app.factories").factory "YouTube", ($http, $q)->
+  api = {}
 
-    api.testFunction = function() {
-      return "Jaws from a function in YouTube factory";
-    };
+  api.testFunction = ->
+    "Jaws from a function in YouTube factory"
 
-    api.getTop25Movies = function(){
-      var d = $q.defer();
-      $http({ method: 'GET',
-                url: 'http://gdata.youtube.com/feeds/api/charts/movies/most_popular?v=2&max-results=25&paid-content=true&hl=en&region=us&alt=json'}).
-        then(function(response) {
-          var movies = response.data.feed.entry.map(function(movie) {
-            return {
-              youtubeId: movie["media$group"]["yt$videoid"]["$t"],
-              title: movie["media$group"]["media$title"]["$t"],
-            };
-          });
-          d.resolve(movies);
-        });
-      return d.promise;
-    }
+  api.getTop25Movies = ->
+    url = "http://gdata.youtube.com/feeds/api/charts/movies/most_popular?v=2&max-results=25&paid-content=true&hl=en&region=us&alt=json&callback=JSON_CALLBACK"
+    d = $q.defer()
+    $http.jsonp(url).then (response)->
+      movies = response.data.feed.entry.map((movie)->
+        youtubeId: movie["media$group"]["yt$videoid"]["$t"]
+        title: movie["media$group"]["media$title"]["$t"]
+      )
+      d.resolve movies
+
+
+    d.promise
+
+  api
+
 ```
-
 This includes ajax call.
 It ges the youtubeId from the movie and also the title
 hence youtubeId: and title:
@@ -1130,22 +1127,20 @@ so now in our MoviesController
 we can get that data.
 
 ```
-angular.module('app.controllers')
-  .controller('MoviesController', [
-  "$scope",
-  "YouTube",
-  function($scope, YouTube) {
+angular.module("app.controllers").controller "MoviesController", [
+  "$scope"
+  "YouTube"
+  ($scope, YouTube) ->
+    YouTube.getTop25Movies().then (result) ->
+      $scope.movies = result
 
-    YouTube.getTop25Movies().then(function(result){
-      $scope.movies = result;
-    });
-
-  }]);
+]
 ```
 
 With this new data we can now correspond with our movies.html file
 
 ```
+ <div class="container">
  <div class="row">
     <div ng-repeat="movie in movies" class="col-md-4 col-sm-6 col-xs-12">
         <a href="/movie/{{movie.youtubeId}}">
@@ -1154,21 +1149,30 @@ With this new data we can now correspond with our movies.html file
           </div> <!-- end "title"-->
         </a>
     </div> <!-- end movie -->
+
+  </div>
+  <br>
+  <br>
+  <a ng-href="/">I'm tired of this, lets play raffler </a>
 </div>
 ```
 
 the link leads to the movie page
-The Index page is like this
+The page is like this
 Were workign with videos awesome :3
 ```
+<div class="container">
   <div class="row">
     <div class="col-xs-12">
       <h2> {{movie.title}} </h2>
       <div class="movie-player-container flex-movie widescreen">
         <iframe width="853" height="480" ng-src="{{movie.youtubeUrl}}" frameborder="0" allowfullscreen></iframe>
       </div>
+      <br>
+      <a ng-href="/movies">I'm tired of this, lets watch movie trailers ... </a>
     </div>
   </div>
+</div>
 ```
 
 but we also need to add the youtube api call into the moviecontroller
@@ -1178,43 +1182,29 @@ But how do we know which movie we need to load
 Use the Angular's RouteParams service.
 It would like this by the end
 ```
-angular.module('raffler.controllers')
-  .controller('MovieController', [
-  "$scope",
-  "$routeParams",
-  "$sce",
-  "YouTube",
-  function($scope, $routeParams, $sce, YouTube) {
+angular.module("app.controllers").controller "MovieController", [
+  "$scope"
+  "$routeParams"
+  "$sce"
+  "YouTube"
+  ($scope, $routeParams, $sce, YouTube) ->
+    console.log $routeParams
+    YouTube.getTop25Movies().then (result) ->
+      movies = result
+      console.log result
+      $scope.movie = _.find(movies, (v) ->
+        v.youtubeId is $routeParams.movie_id
+      )
 
-  console.log($routeParams);
+      $scope.movie.youtubeUrl = $sce.trustAsResourceUrl("http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0")
 
-  YouTube.getTop25Movies().then(function(result){
-    var movies = result;
-    console.log(result);
-    $scope.movie = _.find(movies, function(v){
-      return v.youtubeId == $routeParams.movie_id;
-    });
-
-
-
-    $scope.movie.youtubeUrl = $sce.trustAsResourceUrl("http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0");
-
-  });
-
-  }]);
+]
 
 ```
 
-We need to install the underscore gem because if you notice
-the "_.find" is an udnerscore method so go inside your gem file `gem 'underscore-rails'`
-bundle and restart
-
-THIS concludes refactoring our angular lol
-
-Go slow ryan You can do this!!!
 
 
-### Lets try Coffee Script
+
 
 
 
