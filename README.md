@@ -788,3 +788,171 @@ Go get the bootstrap file from somewhere and put it inside your vendors styleshe
 
 
 
+### Refactoring your angular Code
+
+Make a app directory inside your javascript folder.
+and inside that app lets create an app.js file!
+this also includes how routing might look like.
+
+```
+// This needs to happen first!
+
+// Create name spaces for all modules
+angular.module('raffler.controllers',[]);
+angular.module('raffler.factories',[]);
+
+// And inject in app module
+var app = angular.module("raffler", [
+  "rails",
+  'raffler.controllers',
+  'raffler.factories',
+  'ngRoute'
+]);
+
+app.config(function($routeProvider, $locationProvider) {
+  $locationProvider.html5Mode({
+    enabled: true,
+    requireBase:false
+  });
+
+  $routeProvider
+    .when('/',
+      {
+        templateUrl: '/templates/index.html',
+        controller: 'RaffleController'
+      })
+    .when('/movie/:movie_id',
+      {
+        templateUrl: '/templates/movie.html',
+        controller: 'MovieController'
+      })
+    .when('/movies',
+      {
+        controller: 'MoviesController',
+        templateUrl: '/templates/movies.html'
+      })
+    .otherwise({redirectTo: '/'});
+});
+
+
+```
+
+It'll look like this by the end!!
+
+Make sure your require this inside your application.js
+
+```
+//= require angular
+//= require angular-route
+//= require angularjs/rails/resource
+//= require app/app
+//= require_tree .
+
+```
+
+Now you can have factories.js file a filter.js file a controller folder and not have to worry about it.
+
+For example create a  inside your app folder factories.js file
+and inside
+
+```
+// A place for all my factories
+
+// A factory that wraps the rails resource, compliments to railsResourceFactory service.
+// The returned resource is available under the name 'Player'. Examples:
+//
+// Player.query({ name: "Cartman"})
+//
+// var newPlayer = new Player({ name: "Jack"})
+// newPlayer.create()
+//
+// newPlayer.delete()
+//
+// newPlayer.name = "Eric Cartman"
+// newPlayer.update()
+//
+// Make sure to inject 'Player' where needed.
+
+angular.module('raffler.factories')
+  .factory('Player',
+  function (railsResourceFactory) {
+    var resource = railsResourceFactory({
+      url: '/players',
+      name: 'player'});
+    return resource;
+});
+
+```
+Now inside you can make a controllers folder for your different controllers for example
+
+```
+angular.module('raffler.controllers')
+.controller('RaffleController', [
+  "$scope",
+  "Player",
+  function($scope, Player) {
+
+    Player.query().then(function(result) {
+      $scope.players = result;
+    })
+
+    $scope.addPlayer = function() {
+      var newPlayer = new Player({
+        name: $scope.newName
+      })
+      newPlayer.create().then(function(newlyCreatedPlayer){
+        $scope.players.push(newlyCreatedPlayer);
+        $scope.newName = "";
+      });
+    };
+
+    $scope.drawWinner = function() {
+      var pool = [];
+      angular.forEach($scope.players, function(player) {
+        if (!player.winner) {
+          return pool.push(player);
+        }
+      });
+      if (pool.length > 0) {
+        var player = pool[Math.floor(Math.random() * pool.length)];
+        player.winner = true;
+        player.update();
+        return $scope.lastWinner = player;
+      }
+    };
+
+  }]
+);
+```
+
+### Multiple pages: Angular routing
+
+```
+//= require angular-route
+
+```
+
+```
+<!DOCTYPE html>
+<html ng-app="raffler">
+<head>
+  <base href="/">
+  <title>Raffler</title>
+  <%= stylesheet_link_tag    'application', media: 'all' %>
+  <%= javascript_include_tag 'application'%>
+  <%= csrf_meta_tags %>
+</head>
+<body>
+
+<div ng-view></div>
+
+</body>
+</html>
+
+```
+and now your stuff pages will be inside public/templates folder
+
+
+
+
+
