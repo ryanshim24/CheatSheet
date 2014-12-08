@@ -788,92 +788,55 @@ Go get the bootstrap file from somewhere and put it inside your vendors styleshe
 
 
 
+
+
+
 ### Refactoring your angular Code
 
-Make a app directory inside your javascript folder.
-and inside that app lets create an app.js file!
-this also includes how routing might look like.
+We want to Refactor our code so we can have a more organized look for our angular app. This can get a bit confusing so lets get started!!! It's in javascript but I'll do coffeee script later :3
 
-```
-// This needs to happen first!
+Inside your javascript folder
+Lets create an app folder
 
-// Create name spaces for all modules
-angular.module('raffler.controllers',[]);
-angular.module('raffler.factories',[]);
+Inside this app folder
+* lets create a controllers folder
+* app.js
+* factories.js
 
-// And inject in app module
-var app = angular.module("raffler", [
-  "rails",
-  'raffler.controllers',
-  'raffler.factories',
-  'ngRoute'
-]);
-
-app.config(function($routeProvider, $locationProvider) {
-  $locationProvider.html5Mode({
-    enabled: true,
-    requireBase:false
-  });
-
-  $routeProvider
-    .when('/',
-      {
-        templateUrl: '/templates/index.html',
-        controller: 'RaffleController'
-      })
-    .when('/movie/:movie_id',
-      {
-        templateUrl: '/templates/movie.html',
-        controller: 'MovieController'
-      })
-    .when('/movies',
-      {
-        controller: 'MoviesController',
-        templateUrl: '/templates/movies.html'
-      })
-    .otherwise({redirectTo: '/'});
-});
-
-
-```
-
-It'll look like this by the end!!
-
-Make sure your require this inside your application.js
+Then lets go to our application.js file
+and add the required stuff
 
 ```
 //= require angular
 //= require angular-route
 //= require angularjs/rails/resource
+//= require underscore
 //= require app/app
 //= require_tree .
+```
+Should look like this through thick and thin :3
+
+
+Now inside your app.js file lets get the needed things :)
+
+```
+angular.module('app.controllers',[]);
+angular.module('app.factories',[]);
+
+var app = angular.module("app", [
+    "rails",
+    'app.controllers',
+    'app.factories'
+]);
 
 ```
 
-Now you can have factories.js file a filter.js file a controller folder and not have to worry about it.
+This will allow us to use our controllers folder and factories file because it goes through this javascript file first.
 
-For example create a  inside your app folder factories.js file
-and inside
+Now inside your factory folder you can get your resources like this
 
 ```
-// A place for all my factories
-
-// A factory that wraps the rails resource, compliments to railsResourceFactory service.
-// The returned resource is available under the name 'Player'. Examples:
-//
-// Player.query({ name: "Cartman"})
-//
-// var newPlayer = new Player({ name: "Jack"})
-// newPlayer.create()
-//
-// newPlayer.delete()
-//
-// newPlayer.name = "Eric Cartman"
-// newPlayer.update()
-//
-// Make sure to inject 'Player' where needed.
-
-angular.module('raffler.factories')
+angular.module('app.factories')
   .factory('Player',
   function (railsResourceFactory) {
     var resource = railsResourceFactory({
@@ -883,11 +846,15 @@ angular.module('raffler.factories')
 });
 
 ```
-Now inside you can make a controllers folder for your different controllers for example
+Grabbing from your players controller/route
 
+
+Inside yoru controllers folder you can now setup your controler like this!
+
+Continuing on our raffle.js file
 ```
-angular.module('raffler.controllers')
-.controller('RaffleController', [
+angular.module('app.controllers')
+.controller('IndexCtrl', [
   "$scope",
   "Player",
   function($scope, Player) {
@@ -925,16 +892,133 @@ angular.module('raffler.controllers')
 );
 ```
 
-### Multiple pages: Angular routing
+You gotta add that angular.modlule now
+
+### Moving onto multiple angular routing
+
+Require your `//= require angular-route`
+
+and inside your app.js file
 
 ```
-//= require angular-route
+angular.module('raffler.controllers',[]);
+angular.module('raffler.factories',[]);
+
+// And inject in app module
+var app = angular.module("raffler", [
+  "rails",
+  'raffler.controllers',
+  'raffler.factories',
+  'ngRoute'
+]);
 
 ```
+We got to add it!
 
+
+Lets say we want ot have three routes/pages in our app:
+
+/ - home page
+
+/movies -> Goes to a page that lists the top 25 movies
+
+/movie/:movie_id -> Goes to a page that plays requested movie trailers
+
+You can do whatever you want :3
+
+Your views will now be inside the public/templates page now
+
+So inside lets create
+* index.html
+* movies.html
+* movie.html
+
+Your index.html file can now look like
+
+```
+<h1>Southpark Raffle</h1>
+
+<div ng-controller="IndexController">
+
+  <form ng-submit="addPlayer()">
+    <input type="text" ng-model="newName">
+    <input type="submit" value="Add">
+  </form>
+
+  <ul>
+    <li ng-repeat="player in players">
+      {{player.name}}
+       <span ng-show="player.winner" ng-class="{highlight: player == lastWinner}" class="winner">WINNER</span>
+    </li>
+  </ul>
+
+   <button ng-click="drawWinner()">Draw Winner</button>
+   <br>
+    <a ng-href="/movies">I'm tired of this, lets watch movie trailers ... </a>
+</div>
+```
+
+
+It won't work we have to do one more step
+we need to add our routes and location provider inside our app.js
+
+for this example it would like this
+
+```
+app.config(function($routeProvider, $locationProvider) {
+  $locationProvider.html5Mode({
+    enabled: true,
+    requireBase:false
+  });
+
+  $routeProvider
+    .when('/',
+      {
+        templateUrl: '/templates/index.html',
+        controller: 'RaffleController'
+      })
+    .when('/movie/:movie_id',
+      {
+        templateUrl: '/templates/movie.html',
+        controller: 'MovieController'
+      })
+    .when('/movies',
+      {
+        controller: 'MoviesController',
+        templateUrl: '/templates/movies.html'
+      })
+    .otherwise({redirectTo: '/'});
+});
+```
+
+Inside your application_controller.rb
+
+```
+class ApplicationController < ActionController::Base
+  # Prevent CSRF attacks by raising an exception.
+  # For APIs, you may want to use :null_session instead.
+  protect_from_forgery with: :exception
+
+  after_filter :set_csrf_cookie_for_ng
+
+  def set_csrf_cookie_for_ng
+    cookies['XSRF-TOKEN'] = form_authenticity_token if protect_against_forgery?
+  end
+
+  protected
+
+  def verified_request?
+    super || form_authenticity_token == request.headers['X-XSRF-TOKEN']
+  end
+
+end
+```
+
+and one last step
+Inside our application file for our views
 ```
 <!DOCTYPE html>
-<html ng-app="raffler">
+<html ng-app="app">
 <head>
   <base href="/">
   <title>Raffler</title>
@@ -948,9 +1032,190 @@ angular.module('raffler.controllers')
 
 </body>
 </html>
+```
+
+Finally if we can to add other pages like /movies
+inside your routes file
+```
+Rails.application.routes.draw do
+  resources :players
+
+  root to: "raffler#index"
+  match '*any' => "raffler#index", :via => [:get, :post]
+
+end
 
 ```
-and now your stuff pages will be inside public/templates folder
+
+
+### Next lets create controllers and factory
+
+Lets create a MovieController and MoviesController
+
+Ex) movie.js
+```
+angular.module('app.controllers')
+  .controller('MovieController', [
+  "$scope",
+  "$routeParams",
+  "$sce",
+  "YouTube",
+  function($scope, $routeParams, $sce, YouTube) {
+
+  console.log($routeParams);
+
+  YouTube.getTop25Movies().then(function(result){
+    var movies = result;
+    console.log(result);
+    $scope.movie = _.find(movies, function(v){
+      return v.youtubeId == $routeParams.movie_id;
+    });
+
+    // $scope.movie.youtubeUrl = "http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0"
+
+    $scope.movie.youtubeUrl = $sce.trustAsResourceUrl("http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0");
+
+  });
+
+  }]);
+```
+
+and movies.js
+```
+angular.module('app.controllers')
+  .controller('MoviesController', [
+  "$scope",
+  "YouTube",
+  function($scope, YouTube) {
+
+    YouTube.getTop25Movies().then(function(result){
+      $scope.movies = result;
+    });
+
+  }]);
+```
+
+finally lets create a new factory called Youtube
+```
+angular.module('app.factories')
+  .factory('YouTube', function ($http, $q) {
+    var api = {};
+
+    api.testFunction = function() {
+      return "Jaws from a function in YouTube factory";
+    };
+
+    api.getTop25Movies = function(){
+      var d = $q.defer();
+      $http({ method: 'GET',
+                url: 'http://gdata.youtube.com/feeds/api/charts/movies/most_popular?v=2&max-results=25&paid-content=true&hl=en&region=us&alt=json'}).
+        then(function(response) {
+          var movies = response.data.feed.entry.map(function(movie) {
+            return {
+              youtubeId: movie["media$group"]["yt$videoid"]["$t"],
+              title: movie["media$group"]["media$title"]["$t"],
+            };
+          });
+          d.resolve(movies);
+        });
+      return d.promise;
+    }
+```
+
+This includes ajax call.
+It ges the youtubeId from the movie and also the title
+hence youtubeId: and title:
+
+so now in our MoviesController
+we can get that data.
+
+```
+angular.module('app.controllers')
+  .controller('MoviesController', [
+  "$scope",
+  "YouTube",
+  function($scope, YouTube) {
+
+    YouTube.getTop25Movies().then(function(result){
+      $scope.movies = result;
+    });
+
+  }]);
+```
+
+With this new data we can now correspond with our movies.html file
+
+```
+ <div class="row">
+    <div ng-repeat="movie in movies" class="col-md-4 col-sm-6 col-xs-12">
+        <a href="/movie/{{movie.youtubeId}}">
+          <div class="title">
+            {{movie.title}}
+          </div> <!-- end "title"-->
+        </a>
+    </div> <!-- end movie -->
+</div>
+```
+
+the link leads to the movie page
+The Index page is like this
+Were workign with videos awesome :3
+```
+  <div class="row">
+    <div class="col-xs-12">
+      <h2> {{movie.title}} </h2>
+      <div class="movie-player-container flex-movie widescreen">
+        <iframe width="853" height="480" ng-src="{{movie.youtubeUrl}}" frameborder="0" allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
+```
+
+but we also need to add the youtube api call into the moviecontroller
+But we dont need all the movies on this page. We only need the one specific movie
+But how do we know which movie we need to load
+
+Use the Angular's RouteParams service.
+It would like this by the end
+```
+angular.module('raffler.controllers')
+  .controller('MovieController', [
+  "$scope",
+  "$routeParams",
+  "$sce",
+  "YouTube",
+  function($scope, $routeParams, $sce, YouTube) {
+
+  console.log($routeParams);
+
+  YouTube.getTop25Movies().then(function(result){
+    var movies = result;
+    console.log(result);
+    $scope.movie = _.find(movies, function(v){
+      return v.youtubeId == $routeParams.movie_id;
+    });
+
+
+
+    $scope.movie.youtubeUrl = $sce.trustAsResourceUrl("http://www.youtube.com/embed/" + $scope.movie.youtubeId + "?rel=0");
+
+  });
+
+  }]);
+
+```
+
+We need to install the underscore gem because if you notice
+the "_.find" is an udnerscore method so go inside your gem file `gem 'underscore-rails'`
+bundle and restart
+
+THIS concludes refactoring our angular lol
+
+Go slow ryan You can do this!!!
+
+
+### Lets try Coffee Script
+
 
 
 
