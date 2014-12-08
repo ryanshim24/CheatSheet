@@ -650,7 +650,7 @@ your application view page can look like
 
  then in your playerscontroller
 
- class PlayersController < ApplicationController
+class PlayersController < ApplicationController
   # controller supports json only, it can't render pages
   respond_to :json
 
@@ -660,6 +660,7 @@ your application view page can look like
     # response based on the mime-type requested
     # by the client.
     respond_with Player.all
+
   end
 
   def show
@@ -667,15 +668,21 @@ your application view page can look like
   end
 
   def create
-    respond_with Player.create(params[:player])
+    respond_with Player.create(player_params)
   end
 
   def update
-    respond_with Player.update(params[:id], params[:player])
+    respond_with Player.update(params[:id], player_params)
   end
 
   def destroy
-    respond_with Player.destroy(params[:id])
+    respond_with Player.delete(params[:id])
+  end
+
+  private
+
+  def player_params
+    params.require(:player).permit(:name, :winner, :rating)
   end
 end
 
