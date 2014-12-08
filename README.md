@@ -835,14 +835,14 @@ Should look like this through thick and thin :3
 Now inside your app.js file lets get the needed things :)
 
 ```
-angular.module('app.controllers',[]);
-angular.module('app.factories',[]);
+angular.module "app.controllers", []
+angular.module "app.factories", []
 
-var app = angular.module("app", [
-    "rails",
-    'app.controllers',
-    'app.factories'
-]);
+app = angular.module("app", [
+  "rails"
+  "app.controllers"
+  "app.factories"
+])
 
 ```
 
@@ -851,14 +851,13 @@ This will allow us to use our controllers folder and factories file because it g
 Now inside your factory folder you can get your resources like this
 
 ```
-angular.module('app.factories')
-  .factory('Player',
-  function (railsResourceFactory) {
-    var resource = railsResourceFactory({
-      url: '/players',
-      name: 'player'});
-    return resource;
-});
+angular.module("app.factories").factory "Player", (railsResourceFactory) ->
+  resource = railsResourceFactory(
+    url: "/players"
+    name: "player"
+  )
+  resource
+
 
 ```
 Grabbing from your players controller/route
@@ -866,48 +865,52 @@ Grabbing from your players controller/route
 
 Inside yoru controllers folder you can now setup your controler like this!
 
-Continuing on our raffle.js file
+Continuing on our main.js file
 ```
-angular.module('app.controllers')
-.controller('IndexCtrl', [
-  "$scope",
-  "Player",
-  function($scope, Player) {
+angular.module("app.controllers").controller "IndexCtrl", [
+  "$scope"
+  "Player"
+  ($scope, Player) ->
 
-    Player.query().then(function(result) {
-      $scope.players = result;
-    })
+    Player.query().then (result) ->
+      $scope.players = result
+      return
 
-    $scope.addPlayer = function() {
-      var newPlayer = new Player({
-        name: $scope.newName
-      })
-      newPlayer.create().then(function(newlyCreatedPlayer){
-        $scope.players.push(newlyCreatedPlayer);
-        $scope.newName = "";
-      });
-    };
+    # ADD THAT PLAYER
+    $scope.addPlayer = () ->
+      console.log "it's here"
+      newPlayer = new Player(name: $scope.newName, rating: 5, winner: false)
+      newPlayer.create().then (newlyCreatedPlayer) ->
+        $scope.players.push newlyCreatedPlayer
+        $scope.newName = ""
 
-    $scope.drawWinner = function() {
-      var pool = [];
-      angular.forEach($scope.players, function(player) {
-        if (!player.winner) {
-          return pool.push(player);
-        }
-      });
-      if (pool.length > 0) {
-        var player = pool[Math.floor(Math.random() * pool.length)];
-        player.winner = true;
-        player.update();
-        return $scope.lastWinner = player;
-      }
-    };
+    # DELETE THAT PLAYER
+    $scope.deleteItem = (player) ->
+      player.delete().then () ->
+        select = $scope.players.indexOf(player)
+        $scope.players.splice(select, 1)
 
-  }]
-);
+    # PICK THAT WINNER
+    $scope.pickWin = () ->
+      unwinners = $scope.players.filter (human) ->
+        !human.winner
+
+      if unwinners.length is 0
+        $scope.players.forEach (human) ->
+          human.winner = false;
+          human.update()
+      else
+        item = Math.floor(Math.random() * unwinners.length)
+        console.log item
+        person = unwinners[item];
+        person.winner = true;
+        person.update()
+]
 ```
 
 You gotta add that angular.modlule now
+
+
 
 ### Moving onto multiple angular routing
 
@@ -916,16 +919,15 @@ Require your `//= require angular-route`
 and inside your app.js file
 
 ```
-angular.module('raffler.controllers',[]);
-angular.module('raffler.factories',[]);
+angular.module "app.controllers", []
+angular.module "app.factories", []
 
-// And inject in app module
-var app = angular.module("raffler", [
-  "rails",
-  'raffler.controllers',
-  'raffler.factories',
-  'ngRoute'
-]);
+app = angular.module("app", [
+  "rails"
+  "app.controllers"
+  "app.factories"
+  "ngRoute"
+])
 
 ```
 We got to add it!
@@ -952,23 +954,23 @@ Your index.html file can now look like
 
 ```
 <h1>Southpark Raffle</h1>
-
-<div ng-controller="IndexController">
+<div ng-controller="IndexCtrl">
 
   <form ng-submit="addPlayer()">
     <input type="text" ng-model="newName">
     <input type="submit" value="Add">
   </form>
 
+  <button ng-click="pickWin()" class="btn btn-lg">WINNER</button>
+
   <ul>
-    <li ng-repeat="player in players">
+    <li ng-repeat="player in players" ng-class="{fun: player.winner}">
       {{player.name}}
-       <span ng-show="player.winner" ng-class="{highlight: player == lastWinner}" class="winner">WINNER</span>
+      <button ng-click="deleteItem(player)" class="btn btn-sm btn-danger">Delete</button>
     </li>
   </ul>
 
-   <button ng-click="drawWinner()">Draw Winner</button>
-   <br>
+  <br>
     <a ng-href="/movies">I'm tired of this, lets watch movie trailers ... </a>
 </div>
 ```
@@ -980,53 +982,36 @@ we need to add our routes and location provider inside our app.js
 for this example it would like this
 
 ```
-app.config(function($routeProvider, $locationProvider) {
-  $locationProvider.html5Mode({
-    enabled: true,
-    requireBase:false
-  });
+angular.module "app.controllers", []
+angular.module "app.factories", []
 
-  $routeProvider
-    .when('/',
-      {
-        templateUrl: '/templates/index.html',
-        controller: 'RaffleController'
-      })
-    .when('/movie/:movie_id',
-      {
-        templateUrl: '/templates/movie.html',
-        controller: 'MovieController'
-      })
-    .when('/movies',
-      {
-        controller: 'MoviesController',
-        templateUrl: '/templates/movies.html'
-      })
-    .otherwise({redirectTo: '/'});
-});
-```
+app = angular.module("app", [
+  "rails"
+  "app.controllers"
+  "app.factories"
+  "ngRoute"
+])
 
-Inside your application_controller.rb
+app.config ["$httpProvider", ($httpProvider)->
+  $httpProvider.defaults.headers.common['X-CSRF-Token'] = $('meta[name=csrf-token]').attr('content')
+]
 
-```
-class ApplicationController < ActionController::Base
-  # Prevent CSRF attacks by raising an exception.
-  # For APIs, you may want to use :null_session instead.
-  protect_from_forgery with: :exception
+app.config ($routeProvider, $locationProvider) ->
+  $locationProvider.html5Mode
+    enabled: true
+    requireBase: false
 
-  after_filter :set_csrf_cookie_for_ng
-
-  def set_csrf_cookie_for_ng
-    cookies['XSRF-TOKEN'] = form_authenticity_token if protect_against_forgery?
-  end
-
-  protected
-
-  def verified_request?
-    super || form_authenticity_token == request.headers['X-XSRF-TOKEN']
-  end
-
-end
+  $routeProvider.when("/",
+    templateUrl: "/templates/index.html"
+    controller: "IndexCtrl"
+  ).when("/movie/:movie_id",
+    templateUrl: "/templates/movie.html"
+    controller: "MovieController"
+  ).when("/movies",
+    controller: "MoviesController"
+    templateUrl: "/templates/movies.html"
+  ).otherwise redirectTo: "/"
+  return
 ```
 
 and one last step
@@ -1055,8 +1040,8 @@ inside your routes file
 Rails.application.routes.draw do
   resources :players
 
-  root to: "raffler#index"
-  match '*any' => "raffler#index", :via => [:get, :post]
+  root to: 'main#index'
+  match '*any' => "main#index", :via => [:get, :post]
 
 end
 
