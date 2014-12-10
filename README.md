@@ -1202,6 +1202,340 @@ angular.module("app.controllers").controller "MovieController", [
 
 ```
 
+### Authorization with Angular :3
+
+First lets add devise_token_auth to our Gemfile!
+```
+gem 'devise_token_auth'
+gem 'omniauth', '~> 1.2.2'
+
+then
+```
+$ bundle install
+$ rails g devise_token_auth:install
+$ rake db:migrate
+```
+bower init
+then Create a bower.json file
+
+
+```
+bower install --save ng-token-auth
+```
+You should have a bower_components folder
+and you want to get the angular-cookie folder
+and ng-token-auth folder and put it inside your
+vendor folder.
+
+Once you have that you must require it inside your
+application.js
+looking like
+```
+//= require jquery
+//= require jquery_ujs
+//= require angular
+//= require angular-route
+//= require angularjs/rails/resource
+//= require angular-cookie/angular-cookie
+//= require ng-token-auth/dist/ng-token-auth
+//= require app/app
+//= require ui-bootstrap-tpls-0.12.0.min
+//= require bootstrap.min
+//= require_tree .
+
+```
+
+Then inside your app.js file
+you need to add the module it'll look like htis
+
+```
+app = angular.module("app", [
+  "rails"
+  "app.controllers"
+  "app.factories"
+  "ngRoute"
+  'ipCookie'
+  "ng-token-auth"
+])
+
+
+```
+Create a user_sessions folder inside your templates folder
+and crate a new.html file inside that folder.
+
+```
+<div class="alert alert-danger" role="alert" ng-show="error"> {{error}}
+</div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-6">
+      <form ng-submit="submitLogin(loginForm)" role="form" ng-init="loginForm = {}">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" name="email" id="email" ng-model="loginForm.email" required="required" class="form-control" autofocus>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" name="password" id="password" ng-model="loginForm.password" required="required" class="form-control">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg">Sign in</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+
+```
+
+Now we need to route to the login page.
+It will live at /sign_in and point at UserSessionsCtrl
+
+```
+app.config ($routeProvider, $locationProvider) ->
+  $locationProvider.html5Mode
+    enabled: true
+    requireBase: false
+
+  $routeProvider.when("/",
+    templateUrl: "/templates/main.html"
+    controller: "IndexCtrl"
+  ).when("/sign_in",
+    templateUrl: "/templates/user_sessions/new.html"
+    controller: "UserSessionsCtrl"
+  ).when("/sign_up",
+    templateUrl: "/templates/user_registrations/new.html"
+    controller: "UserRegistrationsCtrl"
+  ).when("/home",
+    templateUrl: "/templates/home.html"
+    controller: "HomeCtrl"
+    resolve:
+      auth:[
+        "$auth"
+        ($auth) ->
+          $auth.validateUser()
+
+        ]
+  ).otherwise redirectTo: "/"
+```
+
+Now inside your routes folder make it look like this
+```
+Rails.application.routes.draw do
+  scope '/api' do
+    mount_devise_token_auth_for 'User', at: '/auth'
+  end
+
+  root to: 'main#index'
+  match '*any' => "main#index", :via => [:get, :post]
+
+end
+```
+
+and inside yoru application_controller make it look like this
+```
+class ApplicationController < ActionController::Base
+  include DeviseTokenAuth::Concerns::SetUserByToken
+  include ActionController::MimeResponds
+  # Prevent CSRF attacks by raising an exception.
+  # For APIs, you may want to use :null_session instead.
+  protect_from_forgery with: :exception
+end
+
+```
+
+now inside your user.rb file make it look like this
+```
+class User < ActiveRecord::Base
+  include DeviseTokenAuth::Concerns::User
+
+  before_save -> do
+    self.uid = SecureRandom.uuid
+    skip_confirmation!
+  end
+
+end
+```
+Create your home page.
+home.html!
+```
+<h1>Home</h1>
+<p>This is the home page</p>
+```
+
+add this to your new.js controller
+```
+$scope.$on "auth:login-error", (ev, reason) ->
+      $scope.error = reason.errors[0]
+``
+and now in your log in page add this~
+```
+<div class="alert alert-danger" role="alert" ng-show="error"> {{error}}
+</div>
+```
+
+Time for the Registration
+
+lets make a user_registrations folder
+inside your templates folder
+and then a new.html file
+```
+<div class="alert alert-danger" role="alert" ng-show="error">
+  {{error}}
+</div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-6">
+      <form ng-submit="handleRegBtnClick()" role="form" ng-init="registrationForm = {}">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" name="email" id="email" ng-model="registrationForm.email" required="required" class="form-control" autofocus>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label> <input type="password" name="password" id="password" ng-model="registrationForm.password" required="required" class="form-control">
+        </div>
+        <div class="form-group">
+          <label for="password_confirmation">Password confirmation</label>
+          <input type="password" name="password_confirmation" id="password_confirmation" ng-model="registrationForm.password_confirmation" required="required" class="form-control">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg">Register</button>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+```
+
+Time to make the controlelr for registration
+createa signup.js.coffee file
+```
+angular.module("app.controllers").controller "UserRegistrationsCtrl", [
+  "$scope"
+  "$location"
+  "$auth"
+  ($scope, $location, $auth) ->
+    $scope.$on "auth:registration-email-error", (ev, reason) ->
+      $scope.error = reason.errors[0]
+      return
+
+    $scope.handleRegBtnClick = ->
+      $auth.submitRegistration($scope.registrationForm).then ->
+        $auth.submitLogin
+          email: $scope.registrationForm.email
+          password: $scope.registrationForm.password
+
+]
+
+```
+lets change our gemfile to this!
+
+gem 'devise_token_auth', git: 'https://github.com/jasonswett/devise_token_auth.git'
+
+
+bunle install.
+
+
+IN THE END THIS IS AN EXAMPLE OF WHAT YOUR FILES SHOULD LOOK LIKE.
+GEMFILE
+```
+source 'https://rubygems.org'
+
+
+# Bundle edge Rails instead: gem 'rails', github: 'rails/rails'
+gem 'rails', '4.1.7'
+# Use postgresql as the database for Active Record
+gem 'pg'
+gem 'pry-rails'
+gem 'angular-gem'
+gem 'angularjs-rails-resource', '~> 1.1.1'
+gem 'devise_token_auth', git: 'https://github.com/jasonswett/devise_token_auth.git'
+gem 'omniauth', '~> 1.2.2'
+# Use SCSS for stylesheets
+gem 'sass-rails', '~> 4.0.3'
+# Use Uglifier as compressor for JavaScript assets
+gem 'uglifier', '>= 1.3.0'
+# Use CoffeeScript for .js.coffee assets and views
+gem 'coffee-rails', '~> 4.0.0'
+# See https://github.com/sstephenson/execjs#readme for more supported runtimes
+# gem 'therubyracer',  platforms: :ruby
+
+# Use jquery as the JavaScript library
+gem 'jquery-rails'
+# Turbolinks makes following links in your web application faster. Read more: https://github.com/rails/turbolinks
+# Build JSON APIs with ease. Read more: https://github.com/rails/jbuilder
+gem 'jbuilder', '~> 2.0'
+# bundle exec rake doc:rails generates the API under doc/api.
+gem 'sdoc', '~> 0.4.0',          group: :doc
+
+# Spring speeds up development by keeping your application running in the background. Read more: https://github.com/rails/spring
+gem 'spring',        group: :development
+
+# Use ActiveModel has_secure_password
+# gem 'bcrypt', '~> 3.1.7'
+
+# Use unicorn as the app server
+# gem 'unicorn'
+
+# Use Capistrano for deployment
+# gem 'capistrano-rails', group: :development
+
+# Use debugger
+# gem 'debugger', group: [:development, :test]
+
+```
+applicaiton.js
+```
+// This is a manifest file that'll be compiled into application.js, which will include all the files
+// listed below.
+//
+// Any JavaScript/Coffee file within this directory, lib/assets/javascripts, vendor/assets/javascripts,
+// or vendor/assets/javascripts of plugins, if any, can be referenced here using a relative path.
+//
+// It's not advisable to add code directly here, but if you do, it'll appear at the bottom of the
+// compiled file.
+//
+// Read Sprockets README (https://github.com/sstephenson/sprockets#sprockets-directives) for details
+// about supported directives.
+//
+//= require jquery
+//= require jquery_ujs
+//= require angular
+//= require angular-route
+//= require angularjs/rails/resource
+//= require angular-cookie/angular-cookie
+//= require ng-token-auth/dist/ng-token-auth
+//= require app/app
+//= require ui-bootstrap-tpls-0.12.0.min
+//= require bootstrap.min
+//= require_tree .
+```
+
+application.css
+```
+/*
+ * This is a manifest file that'll be compiled into application.css, which will include all the files
+ * listed below.
+ *
+ * Any CSS and SCSS file within this directory, lib/assets/stylesheets, vendor/assets/stylesheets,
+ * or vendor/assets/stylesheets of plugins, if any, can be referenced here using a relative path.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the bottom of the
+ * compiled file so the styles you add here take precedence over styles defined in any styles
+ * defined in the other CSS/SCSS files in this directory. It is generally better to create a new
+ * file per style scope.
+ *
+ *= require_tree .
+ *= require_self
+ *= require bootstrap-3.2.0.min
+ */
+```
+
+
 
 
 
